@@ -1,0 +1,37 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #27272a #09090b;
+  }
+  html, body {
+    @apply bg-[#09090B] text-[#EDEDED] min-h-screen overflow-x-hidden font-sans;
+    background-color: #09090B;
+  }
+}
+
+/* Custom Minimalist Dark Obsidian Scrollbars */
+*::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+*::-webkit-scrollbar-track {
+  background: #09090b;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #27272a;
+  border-radius: 4px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46;
+}
+
+*::-webkit-scrollbar-corner {
+  background: #09090b;
+}
