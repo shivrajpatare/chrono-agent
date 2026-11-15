@@ -1,13 +1,13 @@
 # Chrono Agent
 
-> **High-throughput, real-time agentic AI with strictly one tool (`web_search`), deterministic temporal memory + promise tracking, and sub-second TTFT—built from scratch with zero agent frameworks.**
+> **High-throughput, real-time agentic AI with strictly one tool (`web_search`), deterministic episodic temporal memory, and sub-second TTFT—built from scratch in TypeScript with zero agent frameworks.**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Python: 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB.svg?logo=python&logoColor=white)](https://python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![TypeScript: 5.8+](https://img.shields.io/badge/TypeScript-5.8%2B-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Node.js: 22+](https://img.shields.io/badge/Node.js-22%2B-339933.svg?logo=node.js&logoColor=white)](https://nodejs.org)
+[![Express: 4.21+](https://img.shields.io/badge/Express-4.21%2B-000000.svg?logo=express&logoColor=white)](https://expressjs.com)
 [![React: 18](https://img.shields.io/badge/React-18-61DAFB.svg?logo=react&logoColor=black)](https://react.dev)
 [![Tailwind CSS: 3.4](https://img.shields.io/badge/Tailwind-3.4-38B2AC.svg?logo=tailwind-css&logoColor=white)](https://tailwindcss.com)
-[![Eval Benchmark: 100%](https://img.shields.io/badge/Eval_Benchmark-100%25_Passing-brightgreen.svg)](#-evaluation-benchmark-suite)
+[![Architecture Verification: 100%](https://img.shields.io/badge/Verification-5%2F5_Passed_(100%25)-brightgreen.svg)](#-architecture-verification-suite)
 
 ---
 
@@ -15,12 +15,10 @@
 - [Visual Walkthrough](#-visual-walkthrough)
 - [The 3 Architectural Pillars](#-the-3-architectural-pillars)
 - [System Architecture](#-system-architecture)
-- [Quickstart (macOS, Linux & Windows)](#-quickstart)
-  - [Option A: One-Click Launchers](#option-a-one-click-launchers)
-  - [Option B: Manual Step-by-Step](#option-b-manual-step-by-step)
+- [Quickstart (Single Command)](#-quickstart)
 - [Configuration & Environment Variables](#-configuration--environment-variables)
-- [Evaluation Benchmark Suite](#-evaluation-benchmark-suite)
-- [Interactive Frontend UI](#-interactive-frontend-ui)
+- [Architecture Verification Suite](#-architecture-verification-suite)
+- [Interactive Workbench UI](#-interactive-workbench-ui)
 - [Engineering Design Deep-Dive](#-engineering-design-deep-dive)
 - [Repository Structure](#-repository-structure)
 
@@ -47,23 +45,23 @@ The precision temporal research architecture operating end-to-end across three r
 ## 🏛 The 3 Architectural Pillars
 
 ### 1. Fast (Sub-Second TTFT & Zero-Friction Inference)
-- **Hand-Rolled Streaming Loop**: A ~280-line asynchronous generator in [`backend/app/agent.py`](file:///d:/chrono-agent/backend/app/agent.py) built directly on `AsyncOpenAI`, `fastapi`, and `asyncio`—with **zero agent frameworks** (no LangChain, CrewAI, or LlamaIndex).
-- **Single-Pass Tool Routing**: The LLM decides whether to search or synthesize directly in a single turn (`tool_choice="auto"`), eliminating extra "should I search?" classification calls.
-- **Persistent HTTP/2 Pool**: Shared `httpx.AsyncClient(http2=True)` reuses TLS connections to Tavily and Groq across turns, eliminating handshake latency.
-- **Parallel Search Fan-Out**: Dispatches multi-query web searches simultaneously via `asyncio.gather()`, with automatic Jaccard deduplication (>0.75), 350-character snippet trimming, and a 10-minute TTL LRU cache.
-- **Zero-Latency Rate-Limit Failover**: `AsyncOpenAI(max_retries=0)` bypasses the SDK's default 15–25s internal sleep on HTTP 429, rotating instantly to backup models in the pool.
+- **Hand-Rolled Streaming Loop**: A ~300-line asynchronous generator in [`server/agent.ts`](file:///d:/chrono-agent/server/agent.ts) built directly on `openai` (pointed at Groq LPUs), `express`, and Server-Sent Events—with **zero agent frameworks** (no LangChain, CrewAI, or LlamaIndex).
+- **Single-Pass Tool Routing**: The LLM decides whether to search or synthesize directly in a single pass (`tool_choice="auto"`), eliminating extra "should I search?" classification roundtrips.
+- **Parallel Search Fan-Out**: Dispatches multi-query web searches simultaneously via `Promise.all()`, with automatic Jaccard deduplication (>0.75), 350-character snippet trimming, and a 10-minute TTL LRU cache.
+- **Zero-Latency Rate-Limit Failover**: `OpenAI({ maxRetries: 0 })` bypasses the SDK's default internal sleep on HTTP 429, rotating instantly across backup models in the pool (`openai/gpt-oss-120b` $\to$ `qwen/qwen3.8-27b` $\to$ `openai/gpt-oss-20b`).
 
 ### 2. Correct (Anti-Injection Grounding & Guaranteed Citations)
-- **Strictly One Tool (`web_search`)**: Memory retrieval, timestamp injection, and commitment tracking are never exposed as LLM tools. Keeping them in Python prevents hallucinated clock calls and tool-routing drift.
+- **Strictly One Tool (`web_search`)**: Memory retrieval, timestamp injection, and commitment tracking are never exposed as LLM tools. Keeping them in code prevents hallucinated clock calls and multi-turn tool ping-pong.
 - **Untrusted Input Isolation**: Retrieved snippets are wrapped in `<web_source id="N" url="..." published="...">` XML tags with explicit anti-prompt-injection system instructions.
 - **Interactive Inline Citations**: Model syntheses cite claims with `[1]`, `[2]`, mapped directly to source URLs in the React UI with a guaranteed citation fallback guard.
 - **Deterministic Hard Cap**: Agent execution is capped at 3 iterations per turn to guarantee termination.
 
 ### 3. Remembers What You Asked & When (Deterministic Temporal Harness)
-- **Sliding Verbatim Window**: The last 6 conversational turns are formatted with exact timestamps and dynamic relative age labels (e.g. `[2026-11-15 13:30:00 IST (4m ago)]`).
-- **Relative Time-Window Parser**: Resolves colloquial time queries (`"yesterday"`, `"earlier today"`, `"10 mins ago"`, `"first thing I asked"`) deterministically in Python before the LLM runs.
-- **Sanitized SQLite FTS5 BM25 Recall**: Rapid keyword search across older conversation turns, with intent-gated cross-session fallback to keep standalone turns fast and clean.
-- **Automated Promise Tracker**: User commitments (`"I will check..."`, `"remind me to..."`) are extracted via regex, stored in SQLite WAL, and surfaced in the sidebar checklist.
+- **Universal Date-Range Parser**: Uses `chrono-node` to resolve natural-language temporal references (`"last Tuesday"`, `"3 November"`, `"yesterday"`, `"3 weeks ago"`) with automatic past-preferring date resolution.
+- **Full Turn-Pair Expansion**: When a past user query is matched, the harness retrieves complete `(User Question + Assistant Answer)` pairs, preserving previous recommendations and shortlists.
+- **Always-On Chronological Digest**: A compressed cross-session digest (~200 tokens) continuously feeds topic summaries into `<temporal_memory>`, allowing instant recall of past tools, databases, and decisions without burning context tokens.
+- **Anti-Poisoning Filter**: Queries asking about prior conversations are tagged `is_meta = 1` and excluded from search indexing, preventing the model from re-ingesting its own past answers.
+- **Automated Promise Tracker**: User commitments (`"I will check..."`, `"remind me to..."`) are extracted via regex, stored in SQLite WAL, and surfaced in the interactive sidebar checklist.
 
 ---
 
@@ -74,52 +72,40 @@ The precision temporal research architecture operating end-to-end across three r
 |                                    REACT FRONTEND                                       |
 |  - SSE Event Stream Reader (ReadableStream chunk buffer)                                |
 |  - Interactive [1], [2] Citation Badges & Expandable Source Cards                       |
-|  - Real-Time Telemetry Bar (TTFT, Search ms, Memory Hits, Provider)                     |
+|  - Real-Time Telemetry Bar (TTFT, Search ms, Memory Hits, Model Used)                   |
 |  - Temporal Memory Sidebar (Session History + Tracked Promises Checklist)               |
 +-------------------------------------------+---------------------------------------------+
                                             | POST /api/chat (SSE)
                                             v
 +-----------------------------------------------------------------------------------------+
-|                                   FASTAPI BACKEND                                       |
-|  - Lifespan Context: Shared httpx.AsyncClient(http2=True) + SQLite WAL initialization   |
-|  - REST & Streaming Endpoints: /api/chat, /api/sessions, /api/commitments, /api/health   |
+|                                   EXPRESS SERVER                                        |
+|  - Express REST + SSE Streaming Router: /api/chat, /api/sessions, /api/commitments      |
+|  - SQLite (better-sqlite3) in WAL mode + FTS5 full-text indexing                        |
 +-------------------------------------------+---------------------------------------------+
                                             |
                                             v
 +-----------------------------------------------------------------------------------------+
-|                       PRE-TURN DETERMINISTIC HARNESS (memory.py)                        |
-|  [1] Verbatim Window     [2] Relative Time Parser   [3] FTS5 BM25 Recall   [4] Promises |
-|  Last 6 turns formatted  Resolves 'yesterday',      Sanitized keyword      Regex tracks |
-|  with relative age       'earlier', 'Xm ago'        recall (intent-gated)  commitments  |
+|                       PRE-TURN DETERMINISTIC HARNESS (server/memory.ts)                 |
+|  [1] Verbatim Window     [2] chrono-node Parser     [3] Full Turn-Pairs    [4] Digest   |
+|  Last 6 turns formatted  Resolves 'last Tuesday',   User Q + Assistant A   Always-on    |
+|  with relative age       '3 November', past shift   retrieved together     topics (~200t|
 +-------------------------------------------+---------------------------------------------+
                                             | Inject: <temporal_memory> + IST Timestamp
                                             v
 +-----------------------------------------------------------------------------------------+
-|                        STREAMING AGENT LOOP (agent.py)                                  |
-|  - Strictly ONE Tool Exposed: web_search(queries: list[str])                            |
-|  - AsyncOpenAI(max_retries=0) -> 0ms Rate-Limit Model Pool Rotation                     |
-|  - Incremental chunk accumulation by index across streamed delta.tool_calls             |
-|  - Event Protocol: status -> token -> sources -> metrics                                |
+|                        STREAMING AGENT LOOP (server/agent.ts)                           |
+|  - Strictly ONE Tool Definition: web_search(queries: string[])                          |
+|  - Hand-rolled OpenAI-compatible SDK loop on Groq LPUs                                  |
+|  - Pass 1: Tool Routing (stream: false) -> Zero XML token-split bugs                    |
+|  - Pass 2: Synthesis Streaming (stream: true) -> Real-time token delivery               |
 +-------------------------------------------+---------------------------------------------+
-                                            |
-                         +------------------+------------------+
-                         | (If web_search tool called)         | (If answered from memory)
-                         v                                     v
-+---------------------------------------------+  +----------------------------------------+
-|       PARALLEL SEARCH ENGINE (search.py)    |  |       DIRECT STREAMING SYNTHESIS       |
-|  - Tavily API (Primary, basic, 3/query)     |  |  - Instant TTFT (sub-500ms)            |
-|  - DuckDuckGo / ddgs (Zero-Key Fallback)    |  |  - Zero search overhead                |
-|  - Jaccard Snippet Dedup (>0.75)            |  +-------------------+--------------------+
-|  - 350-char Trimming & 10-min TTL Cache     |                      |
-|  - Capped at 8 total sources per turn       |                      |
-+----------------------+----------------------+                      |
-                       | <web_source> XML Tags                       |
-                       v                                             |
-+--------------------------------------------------------------------+--------------------+
-|                          POST-TURN PERSISTENCE & TELEMETRY                              |
-|  - Citation Normalization ([Source N] -> [N]) + Guaranteed [1] Guard                    |
-|  - Save turns & citations into SQLite WAL messages table                                |
-|  - Emit final SSE metrics: ttft_ms, search_ms, memory_hits, provider, model_used         |
+                                            | Execute parallel queries (Promise.all)
+                                            v
++-----------------------------------------------------------------------------------------+
+|                     DUAL-ENGINE SEARCH ADAPTER (server/search.ts)                       |
+|  - Primary: Tavily Search API                                                           |
+|  - Zero-Key Fallback: DuckDuckGo Scraper (duck-duck-scrape) + Direct HTML fallback      |
+|  - LRU 10-minute cache + Jaccard dedup (>0.75) + 350-char untrusted snippet trimming    |
 +-----------------------------------------------------------------------------------------+
 ```
 
@@ -127,138 +113,118 @@ The precision temporal research architecture operating end-to-end across three r
 
 ## 🚀 Quickstart
 
+Chrono Agent is a single-command monorepo.
+
 ### Prerequisites
-- **Python 3.11+**
-- **Node.js 18+ & npm**
-- **Groq API Key** (Free tier from [console.groq.com](https://console.groq.com))
-- *(Optional)* **Tavily API Key** (Falls back cleanly to DuckDuckGo search if omitted)
+- **Node.js 22+** (`node -v`)
+- **npm** (`npm -v`)
+- A **Groq API Key** (free tier at [console.groq.com](https://console.groq.com))
+- *(Optional)* A **Tavily API Key** (free tier at [tavily.com](https://tavily.com)); if omitted, the system falls back to duck-duck-scrape with zero configuration.
 
----
-
-### Option A: One-Click Launchers
-
-#### On macOS / Linux:
+### 1. Clone & Configure
 ```bash
-# Make script executable and run
-chmod +x run.sh
-./run.sh
+git clone https://github.com/shivrajpatare/chrono-agent.git
+cd chrono-agent
+
+# Create your .env file
+cp .env.example .env
 ```
 
-#### On Windows (PowerShell):
-```powershell
-.\run.ps1
+Open `.env` and insert your Groq API key:
+```env
+GROQ_API_KEY="gsk_..."
+TAVILY_API_KEY="" # Optional: duck-duck-scrape runs automatically if left blank
 ```
 
-Both launchers verify dependencies, copy `.env.example` if needed, start FastAPI on `http://127.0.0.1:8000`, start Vite on `http://localhost:5173`, and launch your browser.
-
----
-
-### Option B: Manual Step-by-Step
-
-#### 1. Configure Environment
+### 2. Single-Command Install & Run
 ```bash
-# Copy template and insert your GROQ_API_KEY
-cp .env.example backend/.env
-```
-
-Edit `backend/.env`:
-```ini
-GROQ_API_KEY="your_groq_api_key_here"
-OPENAI_BASE_URL=https://api.groq.com/openai/v1
-PRIMARY_MODEL=meta-llama/llama-4-scout-17b-16e-instruct
-FALLBACK_MODEL=llama-3.3-70b-versatile
-FAST_BACKUP_MODEL=openai/gpt-oss-20b
-TAVILY_API_KEY="" # Leave empty for free DuckDuckGo search
-TIMEZONE=Asia/Kolkata
-DATABASE_PATH=data/chrono.db
-```
-
-#### 2. Start the Backend
-
-| Platform | Command |
-|---|---|
-| **macOS / Linux** | `cd backend`<br>`python3 -m venv .venv`<br>`source .venv/bin/activate`<br>`pip install -r requirements.txt`<br>`uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload` |
-| **Windows (PowerShell)** | `cd backend`<br>`python -m venv .venv`<br>`.\.venv\Scripts\Activate.ps1`<br>`pip install -r requirements.txt`<br>`uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload` |
-
-#### 3. Start the Frontend
-
-In a second terminal:
-```bash
-cd frontend
+# Installs root dependencies and triggers frontend install via postinstall hook
 npm install
+
+# Concurrently boots Express backend (:8000) and React Vite frontend (:5173)
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173) in your browser.
+Visit **`http://localhost:5173`** in your browser.
 
 ---
 
 ## ⚙️ Configuration & Environment Variables
 
-All settings are validated via Pydantic `BaseSettings` in [`backend/app/config.py`](file:///d:/chrono-agent/backend/app/config.py):
+All settings reside in the root `.env` file (copied from [`.env.example`](file:///d:/chrono-agent/.env.example)):
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `GROQ_API_KEY` | *(Required)* | Groq API Key for low-latency LPU inference |
-| `OPENAI_BASE_URL` | `https://api.groq.com/openai/v1` | OpenAI-compatible endpoint |
-| `PRIMARY_MODEL` | `meta-llama/llama-4-scout-17b-16e-instruct` | Primary fast non-reasoning model |
-| `FALLBACK_MODEL` | `llama-3.3-70b-versatile` | Fallback model if primary hits rate limit or 404 |
-| `FAST_BACKUP_MODEL` | `openai/gpt-oss-20b` | High-throughput sub-500ms backup model |
-| `TAVILY_API_KEY` | `""` | Optional Tavily key; uses `duckduckgo_search` if empty |
-| `DATABASE_PATH` | `data/chrono.db` | Local SQLite database file (WAL mode) |
-| `TIMEZONE` | `Asia/Kolkata` | Local timezone for temporal prompt injection |
+| Variable | Default Value | Description |
+| :--- | :--- | :--- |
+| `GROQ_API_KEY` | *(Required)* | Groq API Key for LPU inference. |
+| `OPENAI_BASE_URL` | `https://api.groq.com/openai/v1` | OpenAI-compatible endpoint. |
+| `PRIMARY_MODEL` | `meta-llama/llama-4-scout-17b-16e-instruct` | Preferred primary model. |
+| `FALLBACK_MODEL` | `llama-3.3-70b-versatile` | Fallback model. |
+| `FAST_BACKUP_MODEL`| `openai/gpt-oss-20b` | High-speed backup model. |
+| `TAVILY_API_KEY` | *(Optional)* | Tavily Search key; if empty, DuckDuckGo scraper is used. |
+| `TIMEZONE` | `Asia/Kolkata` | Local timezone injected into every turn. |
+| `DATABASE_PATH` | `data/chrono.db` | Path to persistent SQLite database file. |
+| `PORT` | `8000` | Express server port. |
 
 ---
 
-## 📊 Evaluation Benchmark Suite
+## 🧪 Architecture Verification Suite
 
-Chrono Agent includes a comprehensive 20-question evaluation suite covering 5 distinct behavioral categories in [`backend/evals/dataset.json`](file:///d:/chrono-agent/backend/evals/dataset.json):
+Verify all 5 architectural guarantees (in-session recall, cross-session recall, fuzzy topic digest, temporal bridge delta-verification, and parallel search citations):
 
 ```bash
-# Run the evaluation benchmark
-python backend/evals/run_evals.py
+npm run test:verify
 ```
 
-### Benchmark Results Summary
+### Verification Output:
+```text
+=================================================
+ Starting Chrono Agent Architecture Verification 
+=================================================
 
-| Benchmark Category | Questions | Search Routing | Citation Compliance | Memory Accuracy | Pass Rate |
-|---|---|---|---|---|---|
-| **1. Fresh News (`fresh_news`)** | 4 | 100% (4/4 searched) | 100% (all cited) | N/A | **100%** |
-| **2. Multi-Hop Comparisons (`multi_hop`)** | 4 | 100% (4/4 multi-query) | 100% (all cited) | N/A | **100%** |
-| **3. Conversational / Math (`no_search`)** | 4 | 100% (0/4 searched) | N/A | N/A | **100%** |
-| **4. Temporal Memory (`temporal_memory`)** | 4 | 100% (correct routing) | 100% (when searched) | 100% (recalled) | **100%** |
-| **5. Adversarial Injection (`adversarial`)** | 4 | 100% (untricked) | 100% (fact check cited) | N/A | **100%** |
-| **OVERALL TOTAL** | **20** | **100.0%** | **100.0%** | **100.0%** | **100.0%** |
+[Test 1/5] In-Session Episodic Recall...
+Agent response: The first thing you asked me in this session was: "What is the capital of France and its population?" (asked at 03:49:14 PM IST).
+Telemetry: Searches=0, MemHits=1
+✓ PASS: In-Session Episodic Recall (0 web searches, accurate recall)
 
-*Full per-question latency telemetry and validation logs are saved in [`backend/evals/results.md`](file:///d:/chrono-agent/backend/evals/results.md).*
+[Test 2/5] Cross-Session Recall...
+Agent response: Your first question was: "What is the capital of France and its population?"
+Telemetry: Searches=0, MemHits=1
+✓ PASS: Cross-Session Recall (reached back across sessions with 0 searches)
+
+[Test 3/5] Fuzzy Topic Recall via Chronological Digest...
+Agent response: A few days ago (on 11/12/2026), I recommended Pinecone, Qdrant Cloud, and Weaviate as managed vector databases for RAG...
+✓ PASS: Fuzzy Topic Recall via Chronological Digest
+
+[Test 4/5] Temporal Bridge (Recall Past Shortlist -> Verify Changes)...
+Agent response: Here’s a quick "then-vs-now" check on the five CRMs we listed on Monday for a 20-person sales team...
+Telemetry: Searches=3, Citations=5
+✓ PASS: Temporal Bridge (Recalled shortlist + executed live delta verification)
+
+[Test 5/5] Parallel Web Search with Guaranteed Citations...
+Agent response preview: Groq LPU vs. NVIDIA H100 – Inference-latency snapshot (2026)...
+Telemetry: Searches=3, Cites=3
+✓ PASS: Parallel Web Search with Guaranteed [1] Citations
+
+=================================================
+ Verification Complete: 5/5 Passed (100%)
+=================================================
+```
 
 ---
 
-## 🖥️ Interactive Frontend UI
+## 🖥 Interactive Workbench UI
 
-The frontend is a dark-mode, responsive SPA built with React 18, Vite, TypeScript, and Tailwind CSS:
-
-- **Live Streaming SSE**: Parses raw server chunks into `status`, `token`, `sources`, and `metrics` events with instant visual updates.
-- **Interactive Citations**: Inline citations `[1]`, `[2]` render as interactive badges that link directly to preview cards containing source title, URL, and snippet.
-- **Live Telemetry Bar**: Every turn displays exact millisecond metrics:
-  - **TTFT (Time to First Token)**
-  - **Search Latency & Query Count**
-  - **Temporal Memory Hits**
-  - **Inference Model & Search Provider**
-- **Temporal Memory Sidebar**:
-  - **Session History**: Switch between conversations or start a clean session.
-  - **Tracked Promises Checklist**: Displays detected promises (e.g., *"I will verify the paper"*). Users can toggle promises as active/completed via `PATCH /api/commitments/{id}`.
+Built with React 18, Vite, TypeScript, and Tailwind CSS:
+- **Streaming SSE Event Pipeline**: Consumes tokens via native `ReadableStream` reader with smooth typewriter delivery.
+- **Dynamic Keycap Citations**: Raised `[1]`, `[2]` citation keycaps with domain-favicon pills linking directly to external sources.
+- **Real-Time Telemetry HUD**: Monitors `TTFT`, `Search Latency`, `Total Turn Time`, and `Model Used`.
+- **Temporal Memory Rail**: Displays historical conversations with human-readable session labels and active commitment checkboxes.
 
 ---
 
 ## 📖 Engineering Design Deep-Dive
 
-For an in-depth systems design review, see [`design.md`](file:///d:/chrono-agent/design.md):
-- **Why a Hand-Rolled Loop**: Latency comparison against LangChain/LlamaIndex.
-- **Pre-Turn Temporal Harness**: Regex time parsers, FTS5 BM25 recall, and commitment state machine.
-- **End-to-End Latency Budget**: Stage-by-stage millisecond breakdown (Pre-Turn $\to$ TTFT $\to$ Search $\to$ Synthesis).
-- **Failure Modes & Mitigations**: How the agent handles API quota bursts, 404s, prompt injections, and source conflicts.
-- **Deliberate Tradeoffs**: Why we chose SQLite FTS5 over vector databases and single-pass over multi-agent loops.
+For complete details on architectural trade-offs, rejection rationales, and future roadmap, read **[`DESIGN.md`](file:///d:/chrono-agent/DESIGN.md)**.
 
 ---
 
@@ -266,45 +232,30 @@ For an in-depth systems design review, see [`design.md`](file:///d:/chrono-agent
 
 ```
 chrono-agent/
-├── AGENTS.md                  # Strict project contract & architectural constraints
-├── design.md                  # Comprehensive engineering design document
-├── README.md                  # Customer- and reviewer-facing overview
-├── run.sh                     # POSIX bash launcher for macOS / Linux
-├── run.ps1                    # One-click launcher for Windows PowerShell
-├── .env.example               # Root configuration template
-├── .gitignore                 # Hardened git ignore rules
-│
-├── backend/                   # Python FastAPI Backend
-│   ├── requirements.txt       # Minimal dependencies (fastapi, uvicorn, openai, httpx, etc.)
-│   ├── .env.example           # Backend environment template
-│   ├── verify_foundation.py   # Step 1 foundation validation script
-│   ├── verify_agent.py        # Step 2 streaming agent validation script
-│   ├── app/
-│   │   ├── config.py          # Pydantic BaseSettings & model fallback configuration
-│   │   ├── memory.py          # SQLite WAL, FTS5 BM25, relative time parser, commitments
-│   │   ├── search.py          # Dual Tavily/DDGS search adapter with HTTP/2 & deduplication
-│   │   ├── agent.py           # Hand-rolled single-pass streaming agent loop
-│   │   └── main.py            # FastAPI ASGI server, SSE streaming, and REST endpoints
-│   └── evals/
-│       ├── dataset.json       # 20 curated evaluation test cases
-│       ├── run_evals.py       # Automated eval runner with metrics assertions
-│       └── results.md         # Full evaluation benchmark report
-│
-└── frontend/                  # React + Vite + TypeScript + Tailwind CSS Frontend
-    ├── package.json           # Pinned dependencies (Tailwind 3.4.17, Lucide React)
-    ├── vite.config.ts         # Vite build configuration with proxy to :8000
-    ├── tailwind.config.js     # Dark-mode color palette and styling
-    └── src/
-        ├── types.ts           # SSE events, Message, Source, Commitment interfaces
-        ├── App.tsx            # Main layout, SSE connection reader, state management
-        └── components/
-            ├── ChatMessage.tsx       # Message bubble with interactive [N] citation badges
-            ├── SearchIndicator.tsx   # Live search spinner & query tags
-            ├── TelemetryBar.tsx      # Real-time TTFT, search, and memory metrics
-            └── MemorySidebar.tsx     # Session switcher & tracked promises checklist
+├── server/                           # TypeScript Express Backend
+│   ├── index.ts                      # Express server & SSE router (:8000)
+│   ├── config.ts                     # Environment validation & model pool
+│   ├── memory.ts                     # 3-Layer temporal engine, chrono-node & SQLite FTS5
+│   ├── search.ts                     # Dual Tavily + DuckDuckGo search adapter
+│   ├── agent.ts                      # Hand-rolled single-pass agent loop
+│   ├── verify_architecture.ts        # 5-test architectural verification suite
+│   └── tsconfig.json                 # NodeNext TypeScript configuration
+├── frontend/                         # React 18 + Vite Workbench
+│   ├── src/
+│   │   ├── App.tsx                   # Main workbench UI & SSE stream consumer
+│   │   ├── types.ts                  # Shared telemetry and message types
+│   │   └── main.tsx                  # React DOM root
+│   └── package.json
+├── data/                             # Persistent SQLite storage
+│   └── chrono.db                     # WAL mode + FTS5 messages & commitments
+├── docs/                             # Submission documentation & media
+│   └── screenshots/                  # Verified execution screenshots
+│       ├── 1-workbench-ui.png
+│       ├── 2-grounded-search.png
+│       └── 3-temporal-recall.png
+├── DESIGN.md                         # 1-page systems engineering design document
+├── README.md                         # Project documentation & quickstart
+├── package.json                      # Root monorepo script coordinator
+├── .env.example                      # Zero-secret environment template
+└── .gitignore                        # Git security rules
 ```
-
----
-
-## 📄 License
-Released under the [MIT License](file:///d:/chrono-agent/LICENSE).

@@ -1,0 +1,44 @@
+{
+  "name": "chrono-agent",
+  "version": "2.0.0",
+  "description": "Real-time streaming agentic AI with strictly one tool (web_search), generalized temporal memory, and dark-mode workbench UI.",
+  "type": "module",
+  "main": "server/index.ts",
+  "scripts": {
+    "dev": "concurrently -k -n \"server,client\" -c \"yellow,cyan\" \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "tsx watch server/index.ts",
+    "dev:client": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build && tsc -p server/tsconfig.json",
+    "start": "node --loader tsx server/index.ts",
+    "test:verify": "tsx server/verify_architecture.ts",
+    "postinstall": "npm --prefix frontend install"
+  },
+  "keywords": [
+    "agentic-ai",
+    "temporal-memory",
+    "web-search",
+    "streaming",
+    "groq",
+    "sqlite-fts5"
+  ],
+  "author": "Shivraj Patare",
+  "license": "MIT",
+  "dependencies": {
+    "better-sqlite3": "^13.2.0",
+    "chrono-node": "^2.10.3",
+    "concurrently": "^9.1.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "duck-duck-scrape": "^2.2.7",
+    "express": "^4.21.1",
+    "openai": "^4.73.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.9.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}
